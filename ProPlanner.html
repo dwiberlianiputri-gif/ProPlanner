@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProPlanner - Professional Project Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .mobile-screen::-webkit-scrollbar { width: 4px; }
+        .mobile-screen::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+        
+        .nav-item.active { color: #4f46e5; }
+        .nav-item.active svg, .nav-item.active .nav-text { color: #4f46e5; }
+        
+        .status-on-track { background-color: #dcfce7; color: #166534; }
+        .status-at-risk { background-color: #fef9c3; color: #854d0e; }
+        .status-delayed { background-color: #fee2e2; color: #991b1b; }
+
+        .status-belum { background-color: #fecaca; color: #991b1b; }
+        .status-sedang { background-color: #fef08a; color: #a16207; }
+        .status-selesai { background-color: #dcfce7; color: #166534; }
+        .status-dp { background-color: #fed7aa; color: #c2410c; }
+        .status-lunas { background-color: #dbeafe; color: #1e40af; }
+        
+        .modal { transition: opacity 0.3s ease; }
+        .calendar-day { min-height: 2.5rem; }
+        .calendar-day.has-event { color: white; font-weight: bold; }
+    </style>
+</head>
+<body class="bg-slate-200 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-sm h-[800px] max-h-[90vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border-4 border-gray-800 relative">
+        
+        <main id="main-content" class="flex-grow overflow-y-auto mobile-screen bg-slate-50">
+            <!-- Dynamic Content -->
+        </main>
+        
+        <nav id="bottom-nav" class="absolute bottom-0 left-0 right-0 h-20 bg-white/80 backdrop-blur-sm border-t border-slate-200 flex justify-around items-center rounded-b-3xl z-10">
+            <!-- Dynamic Navigation -->
+        </nav>
+
+        <!-- Generic Modal -->
+        <div id="generic-modal" class="modal absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-20 opacity-0 pointer-events-none">
+            <div id="modal-content" class="bg-white rounded-lg shadow-xl p-6 w-full max-w-xs">
+                <!-- Modal content will be injected here -->
+            </div>
+        </div>
+    </div>
+
+<script>
+    // --- STATE & DATABASE ---
+    const appState = {
+        currentView: 'workspace', // 'workspace', 'project', 'profile'
+        selectedProjectId: null,
+        activeProjectTab: 'timeline',
+        activeBudgetTab: 'rab'
+    };
+    
+    let projectData = {
+        proj1: { 
+            name: 'Liburan Angkatan 2025', category: 'Event Kampus', progress: { tasks: 17, budget: 22 }, status: { class: 'status-at-risk', text: 'Beresiko' },
+            timeline: [
+                { id:1, name: 'Mencari Sponsor', start: '2025-08-11', end: '2025-09-20', color: 'bg-yellow-400' },
+                { id:2, name: 'Open Kepanitiaan', start: '2025-08-18', end: '2025-08-30', color: 'bg-orange-400' },
+                { id:3, name: 'Mulai Persiapan Event', start: '2025-09-01', end: '2025-10-25', color: 'bg-sky-500' },
+                { id:4, name: 'Penyelesaian & Laporan', start: '2025-10-26', end: '2025-11-15', color: 'bg-lime-500' },
+            ],
+            tasks: [
+                { id:1, division: 'Administrasi dan Finance', job: 'Membuat Proposal', pj: 'Sekretaris', deadline: '', notes: '', status: 'sedang' },
+                { id:2, division: 'Administrasi dan Finance', job: 'Mencatat Laporan Keuangan', pj: 'Bendahara', deadline: 'Selama Kepanitiaan', notes: '', status: 'selesai' },
+                { id:3, division: 'Administrasi dan Finance', job: 'Membuat Surat Undangan Acara', pj: 'Sekretaris', deadline: '', notes: 'Untuk UKM, Ormawa, dll', status: 'belum' },
+                { id:4, division: 'Acara', job: 'Menyiapkan konsep detail acara', pj: 'Kor Acara', deadline: '20 Sep 2025', notes: '', status: 'belum' },
+                { id:5, division: 'PDD', job: 'Membuat Grand Design', pj: 'Kor PDD', deadline: '25 Sep 2025', notes: '', status: 'belum' },
+            ],
+            budget: {
+                total: 22771000,
+                items: [
+                    { id:1, division: 'Acara', item: 'Hadiah Mini Games', qty: 25, unitPrice: 5000, status: 'belum' },
+                    { id:2, division: 'Konsumsi', item: 'Air Gelas', qty: 4, unitPrice: 25000, status: 'belum' },
+                    { id:3, division: 'Konsumsi', item: 'Paket Nasi Box (2x makan)', qty: 180, unitPrice: 25000, status: 'belum' },
+                    { id:4, division: 'Perlengkapan', item: 'Baju Angkatan 2025', qty: 48, unitPrice: 75000, status: 'dp' },
+                    { id:5, division: 'Perlengkapan', item: 'Sewa Villa', qty: 1, unitPrice: 3000000, status: 'dp' },
+                    { id:6, division: 'PDD', item: 'Kamera', qty: 2, unitPrice: 150000, status: 'belum' },
+                ],
+                transactions: [
+                    { id:1, date: '26/09/2025', desc: 'Modal dari bendahara umum', debit: 200000, credit: 0, pj: 'Pat' },
+                    { id:2, date: '24/09/2025', desc: 'Pembelian snacks', debit: 0, credit: 170000, pj: 'Pat' },
+                    { id:3, date: '02/10/2025', desc: 'Pembelian bahan makanan', debit: 0, credit: 200000, pj: 'Lia' },
+                    { id:4, date: '17/10/2025', desc: 'Bayar jasa pembuatan makanan', debit: 0, credit: 105000, pj: 'Lia' },
+                    { id:5, date: '26/10/2025', desc: 'Pembelian nasi kotak', debit: 0, credit: 1950000, pj: 'Abu' },
+                ]
+            },
+            team: [
+                { id:1, division: 'Ketua Panitia', name: 'Budi Perkasa', role: 'I011221250', performance: 5 },
+                { id:2, division: 'Sekretaris', name: 'Citra Lestari', role: 'A021241225', performance: 4 },
+                { id:3, division: 'Bendahara', name: 'Dharma Wijaya', role: 'G011231003', performance: 5 },
+                { id:4, division: 'Acara', name: 'Dian Puspita', role: 'R011231130', performance: 4 },
+                { id:5, division: 'Acara', name: 'Eka Saputra', role: 'B021201062', performance: 3 },
+                { id:6, division: 'Pubdok', name: 'Fajar Nugroho', role: 'D131221026', performance: 4 },
+                { id:7, division: 'Humas', name: 'Gilang Ramadhan', role: 'L021241108', performance: 5 },
+            ]
+        },
+        proj2: { 
+            name: 'Seminar Nasional AI', category: 'Akademik', progress: { tasks: 45, budget: 70 }, status: { class: 'status-on-track', text: 'Aman' },
+            timeline: [], tasks: [], budget: { total: 0, items: [], transactions: [] }, team: []
+        }
+    };
+
+    // --- DOM ELEMENTS ---
+    const mainContent = document.getElementById('main-content');
+    const bottomNav = document.getElementById('bottom-nav');
+    const genericModal = document.getElementById('generic-modal');
+    const modalContent = document.getElementById('modal-content');
+    
+    // --- MODAL & ACTIONS ---
+    function toggleNewProjectModal(show) {
+        const content = `
+            <h3 class="text-xl font-bold text-slate-800 mb-4">Proyek Baru</h3>
+            <form id="add-project-form">
+                <div class="mb-3">
+                    <label for="projectName" class="text-sm font-medium text-slate-600 block mb-1">Nama Proyek</label>
+                    <input type="text" id="projectName" class="w-full border border-slate-300 rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Contoh: Seminar Nasional" required>
+                </div>
+                <div class="mb-4">
+                    <label for="projectCategory" class="text-sm font-medium text-slate-600 block mb-1">Kategori</label>
+                    <input type="text" id="projectCategory" class="w-full border border-slate-300 rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Contoh: Akademik" required>
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button type="button" onclick="toggleModal(false)" class="text-sm font-medium text-slate-600 px-4 py-2 rounded-md hover:bg-slate-100">Batal</button>
+                    <button type="submit" class="text-sm font-medium text-white bg-indigo-600 px-4 py-2 rounded-md hover:bg-indigo-700">Simpan</button>
+                </div>
+            </form>
+        `;
+        toggleModal(show, content);
+        if(show) document.getElementById('add-project-form').addEventListener('submit', addNewProject);
+    }
+
+    function showDeleteConfirmation(itemType, itemId, itemName) {
+        const content = `
+            <h3 class="text-lg font-bold text-slate-800 mb-2">Konfirmasi Hapus</h3>
+            <p class="text-sm text-slate-600 mb-4">Apakah Anda yakin ingin menghapus "${itemName}"?</p>
+            <div class="flex justify-end gap-3">
+                <button type="button" onclick="toggleModal(false)" class="text-sm font-medium text-slate-600 px-4 py-2 rounded-md hover:bg-slate-100">Batal</button>
+                <button type="button" onclick="deleteItem('${itemType}', ${itemId})" class="text-sm font-medium text-white bg-red-600 px-4 py-2 rounded-md hover:bg-red-700">Hapus</button>
+            </div>
+        `;
+        toggleModal(true, content);
+    }
+
+
+    function toggleModal(show, content = '') {
+        if (show) {
+            modalContent.innerHTML = content;
+            genericModal.classList.remove('opacity-0', 'pointer-events-none');
+        } else {
+            genericModal.classList.add('opacity-0', 'pointer-events-none');
+            modalContent.innerHTML = '';
+        }
+    }
+
+    const editIcon = (onClick) => `<button onclick="${onClick}">${_editIcon}</button>`;
+    const deleteIcon = (onClick) => `<button onclick="${onClick}">${_deleteIcon}</button>`;
+    const _editIcon = `<svg class="w-4 h-4 text-slate-500 hover:text-indigo-600 cursor-pointer" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>`;
+    const _deleteIcon = `<svg class="w-4 h-4 text-slate-500 hover:text-red-600 cursor-pointer" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>`;
+    const addAction = (label, onClick) => `<button onclick="${onClick}" class="text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg flex items-center gap-2"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>${label}</button>`;
+    const itemActions = (editAction, deleteAction) => `<div class="flex items-center justify-center gap-3">${editIcon(editAction)}${deleteIcon(deleteAction)}</div>`;
+    
+    // --- TEMPLATES & RENDERING ---
+    function renderWorkspace() {
+        mainContent.innerHTML = `
+            <div class="p-6">
+                <header class="flex justify-between items-center mb-6">
+                    <div>
+                        <h1 class="text-2xl font-bold text-slate-800">Workspace</h1>
+                        <p class="text-slate-500">Selamat pagi, Manajer!</p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <svg class="w-6 h-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>
+                        <img src="https://placehold.co/40x40/E2E8F0/475569?text=MP" alt="User Avatar" class="rounded-full">
+                    </div>
+                </header>
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="bg-white p-4 rounded-lg border border-slate-200"><p class="text-3xl font-bold text-indigo-600">${Object.keys(projectData).length}</p><p class="text-sm text-slate-500">Proyek Aktif</p></div>
+                    <div class="bg-white p-4 rounded-lg border border-slate-200"><p class="text-3xl font-bold text-amber-600">5</p><p class="text-sm text-slate-500">Tugas Mendesak</p></div>
+                </div>
+                <div>
+                    <div class="flex justify-between items-center mb-3">
+                         <h2 class="text-lg font-semibold text-slate-800">Daftar Proyek</h2>
+                         <button onclick="toggleNewProjectModal(true)" class="text-sm font-medium text-indigo-600">+ Proyek Baru</button>
+                    </div>
+                    <div class="space-y-4">
+                        ${Object.keys(projectData).map(id => renderProjectCard(id, projectData[id])).join('')}
+                    </div>
+                </div>
+            </div>`;
+    }
+
+    function renderProjectCard(id, project) {
+        return `
+            <div class="bg-white p-4 rounded-lg border border-slate-200 cursor-pointer transition hover:shadow-md hover:border-indigo-300" onclick="navigateToProject('${id}')">
+                <div class="flex justify-between items-start mb-3">
+                    <div>
+                        <p class="text-xs text-indigo-600 font-semibold">${project.category}</p>
+                        <p class="font-semibold text-slate-800 text-lg">${project.name}</p>
+                    </div>
+                    <span class="text-xs px-2 py-1 rounded-full ${project.status.class}">${project.status.text}</span>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-500 mb-2">
+                    <p>Tugas: <span class="font-semibold text-slate-700">${project.progress.tasks}%</span></p>
+                    <p>Anggaran: <span class="font-semibold text-slate-700">${project.progress.budget}%</span></p>
+                </div>
+                <div class="flex gap-2 w-full h-1.5 rounded-full overflow-hidden bg-slate-200">
+                    <div class="bg-indigo-500" style="width:${project.progress.tasks}%"></div>
+                    <div class="bg-emerald-500" style="width:${project.progress.budget}%"></div>
+                </div>
+            </div>`;
+    }
+
+    function renderProjectView() {
+        const project = projectData[appState.selectedProjectId];
+        mainContent.innerHTML = `
+             <div class="pb-6">
+                <header class="p-6 flex justify-between items-center">
+                    <button onclick="navigateToWorkspace()" class="flex items-center gap-2 text-slate-600 font-semibold hover:text-indigo-600">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                        <span>Workspace</span>
+                    </button>
+                    <svg class="w-6 h-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" /></svg>
+                </header>
+                <div class="px-6">
+                    <h1 class="text-3xl font-bold text-slate-800 mb-6">${project.name}</h1>
+                    <div id="project-tab-content">
+                        ${renderProjectTabContent()}
+                    </div>
+                </div>
+            </div>`;
+    }
+    
+    function renderProfileView() {
+         mainContent.innerHTML = `
+            <div class="p-6">
+                <header class="flex justify-between items-center mb-6">
+                     <div>
+                        <h1 class="text-2xl font-bold text-slate-800">Profil Saya</h1>
+                        <p class="text-slate-500">Pengaturan akun dan preferensi</p>
+                    </div>
+                </header>
+                <div class="bg-white p-6 rounded-lg border flex flex-col items-center text-center">
+                    <img src="https://placehold.co/80x80/E2E8F0/475569?text=MP" alt="User Avatar" class="rounded-full mb-4">
+                    <h2 class="text-xl font-bold text-slate-800">Manajer Proyek</h2>
+                    <p class="text-slate-500 mb-4">manager.proyek@email.com</p>
+                    <button class="text-sm font-medium bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-200">Edit Profil</button>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderProjectTabContent() {
+        switch (appState.activeProjectTab) {
+            case 'timeline': return renderTimelineTab();
+            case 'tugas': return renderTugasTab();
+            case 'anggaran': return renderAnggaranTab();
+            case 'tim': return renderTimTab();
+            default: return '';
+        }
+    }
+
+    function renderTimelineTab() {
+        const { timeline } = projectData[appState.selectedProjectId];
+        const months = ['Agustus', 'September', 'Oktober', 'November'];
+        const year = 2025;
+        const generateCalendar = (month, year) => {
+            let date = new Date(year, month, 1);
+            let days = [];
+            let firstDay = (date.getDay() + 6) % 7; 
+            for (let i = 0; i < firstDay; i++) { days.push({ day: '', events: [] }); }
+            while (date.getMonth() === month) {
+                let dayEvents = timeline.filter(event => {
+                    const start = new Date(event.start);
+                    const end = new Date(event.end);
+                    return date >= start && date <= end;
+                }).map(event => event.color);
+                days.push({ day: date.getDate(), events: dayEvents });
+                date.setDate(date.getDate() + 1);
+            }
+            return days;
+        };
+        let calendarContent = months.map((monthName, index) => {
+            const monthIndex = 7 + index;
+            const days = generateCalendar(monthIndex, year);
+            return `
+                <div class="mb-4">
+                    <h3 class="font-semibold text-center mb-2">${monthName} ${year}</h3>
+                    <div class="grid grid-cols-7 gap-1 text-xs text-center">
+                        <div class="font-medium text-slate-500">S</div><div class="font-medium text-slate-500">S</div><div class="font-medium text-slate-500">R</div><div class="font-medium text-slate-500">K</div><div class="font-medium text-slate-500">J</div><div class="font-medium text-slate-500">S</div><div class="font-medium text-slate-500">M</div>
+                        ${days.map(d => `<div class="calendar-day rounded flex items-center justify-center ${d.events.length > 0 ? d.events[0] + ' has-event' : 'bg-slate-100'}">${d.day}</div>`).join('')}
+                    </div>
+                </div>`;
+        }).join('');
+        return `
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-slate-800">Timeline Kegiatan</h2>
+                <button class="text-sm font-semibold text-indigo-600 flex items-center gap-1">+ Tambah Event</button>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow-sm border">${calendarContent}</div>
+            <div class="bg-white p-4 rounded-lg mt-4 shadow-sm border">
+                <h3 class="font-semibold mb-2">Legenda</h3>
+                <div class="space-y-2 text-sm">
+                    ${timeline.map(e => `<div class="flex items-center"><div class="w-4 h-4 rounded mr-2 ${e.color}"></div><span>${e.name}</span></div>`).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    function renderTugasTab() {
+        const tasks = projectData[appState.selectedProjectId].tasks;
+        if (!tasks || tasks.length === 0) return `<div><h2 class="text-2xl font-bold text-slate-800 mb-4">Jobdesc per Divisi</h2><div class="bg-white p-4 rounded-lg border"><p class="text-slate-500 text-sm">Belum ada tugas.</p></div></div>`;
+        const tasksByDivision = tasks.reduce((acc, task) => { (acc[task.division] = acc[task.division] || []).push(task); return acc; }, {});
+        let content = '';
+        for (const division in tasksByDivision) {
+            content += `
+                <div class="mb-4 overflow-x-auto">
+                    <div class="flex justify-between items-center mb-2 p-1">
+                        <h3 class="font-semibold text-indigo-700">${division}</h3>
+                        <button class="text-xs font-semibold text-indigo-600 flex items-center gap-1">+ Tambah Tugas</button>
+                    </div>
+                    <div class="bg-white rounded-lg shadow-sm border">
+                        <table class="w-full text-xs">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th class="p-2 text-left font-semibold">Jobdesc</th>
+                                    <th class="p-2 text-left font-semibold">Catatan</th>
+                                    <th class="p-2 text-center font-semibold">Status</th>
+                                    <th class="p-2 text-center font-semibold">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tasksByDivision[division].map(task => `
+                                    <tr class="border-t border-slate-100">
+                                        <td class="p-2"><p class="font-medium">${task.job}</p><p class="text-slate-500">${task.pj}</p></td>
+                                        <td class="p-2 text-slate-500">${task.notes}</td>
+                                        <td class="p-2 text-center"><span class="px-2 py-1 rounded-full status-${task.status} capitalize">${task.status}</span></td>
+                                        <td class="p-2">${itemActions('', `showDeleteConfirmation('task', ${task.id}, '${task.job.replace(/'/g, "\\'")}')`)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>`;
+        }
+        return `<div><h2 class="text-2xl font-bold text-slate-800 mb-4">Jobdesc per Divisi</h2>${content}</div>`;
+    }
+
+    function renderAnggaranTab() {
+        const { budget } = projectData[appState.selectedProjectId];
+        const formatCurrency = (num) => `Rp ${new Intl.NumberFormat('id-ID').format(num)}`;
+        const isRabActive = appState.activeBudgetTab === 'rab';
+        const rabContent = () => {
+            if (!budget.items || budget.items.length === 0) return `<div class="flex justify-end mb-4">${addAction('Tambah Item', '')}</div><div class="bg-white p-4 rounded-lg border"><p class="text-slate-500 text-sm">Belum ada RAB.</p></div>`;
+            const itemsByDivision = budget.items.reduce((acc, item) => { (acc[item.division] = acc[item.division] || []).push(item); return acc; }, {});
+            let content = '';
+            for (const division in itemsByDivision) {
+                content += `
+                    <div class="mb-4 overflow-x-auto">
+                        <h3 class="font-semibold text-indigo-700 mb-2 p-1">${division}</h3>
+                        <div class="bg-white rounded-lg shadow-sm border">
+                            <table class="w-full text-xs">
+                                <thead class="bg-slate-50"><tr><th class="p-2 text-left font-semibold">Rincian</th><th class="p-2 text-right font-semibold">Total</th><th class="p-2 text-center font-semibold">Status</th><th class="p-2 text-center font-semibold">Aksi</th></tr></thead>
+                                <tbody>
+                                    ${itemsByDivision[division].map(item => `
+                                        <tr class="border-t border-slate-100">
+                                            <td class="p-2">${item.item} (${item.qty}x)</td>
+                                            <td class="p-2 text-right font-medium">${formatCurrency(item.qty * item.unitPrice)}</td>
+                                            <td class="p-2 text-center"><span class="px-2 py-1 rounded-full status-${item.status} uppercase">${item.status}</span></td>
+                                            <td class="p-2">${itemActions('', `showDeleteConfirmation('rab', ${item.id}, '${item.item.replace(/'/g, "\\'")}')`)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>`;
+            }
+            return `<div class="flex justify-end mb-4">${addAction('Tambah Item', '')}</div>${content}<div class="text-right font-bold p-4 bg-white rounded-lg border shadow-sm">Total Kebutuhan: ${formatCurrency(budget.total)}</div>`;
+        };
+        const laporanContent = () => {
+            if (!budget.transactions || budget.transactions.length === 0) return `<div class="flex justify-end mb-4">${addAction('Tambah Transaksi', '')}</div><div class="bg-white p-4 rounded-lg border"><p class="text-slate-500 text-sm">Belum ada transaksi.</p></div>`;
+            return `
+                <div class="flex justify-end mb-4">${addAction('Tambah Transaksi', '')}</div>
+                <div class="overflow-x-auto">
+                    <div class="bg-white rounded-lg shadow-sm border">
+                        <table class="w-full text-xs">
+                           <thead class="bg-slate-50"><tr><th class="p-2 text-left font-semibold">Keterangan</th><th class="p-2 text-right font-semibold">Debit</th><th class="p-2 text-right font-semibold">Kredit</th><th class="p-2 text-center font-semibold">Aksi</th></tr></thead>
+                            <tbody>
+                                ${budget.transactions.map(tx => `
+                                    <tr class="border-t border-slate-100">
+                                        <td class="p-2"><p class="font-medium">${tx.desc}</p><p class="text-slate-500">${tx.date}</p></td>
+                                        <td class="p-2 text-right text-green-600">${tx.debit ? formatCurrency(tx.debit) : '-'}</td>
+                                        <td class="p-2 text-right text-red-600">${tx.credit ? formatCurrency(tx.credit) : '-'}</td>
+                                        <td class="p-2">${itemActions('', `showDeleteConfirmation('transaction', ${tx.id}, '${tx.desc.replace(/'/g, "\\'")}')`)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>`;
+        };
+        return `
+            <h2 class="text-2xl font-bold text-slate-800 mb-4">Anggaran</h2>
+            <div class="flex gap-2 mb-4 p-1 bg-slate-200 rounded-lg">
+                <button onclick="setBudgetTab('rab')" class="w-1/2 p-2 rounded-md text-sm font-semibold ${isRabActive ? 'bg-white shadow' : 'text-slate-600'}">RAB</button>
+                <button onclick="setBudgetTab('laporan')" class="w-1/2 p-2 rounded-md text-sm font-semibold ${!isRabActive ? 'bg-white shadow' : 'text-slate-600'}">Laporan Keuangan</button>
+            </div>
+            ${isRabActive ? rabContent() : laporanContent()}`;
+    }
+
+    function renderTimTab() {
+        const team = projectData[appState.selectedProjectId].team;
+        if (!team || team.length === 0) return `<div><h2 class="text-2xl font-bold text-slate-800 mb-4">Struktur Tim</h2><div class="bg-white p-4 rounded-lg border"><p class="text-slate-500 text-sm">Belum ada anggota tim.</p></div></div>`;
+        const teamByDivision = team.reduce((acc, member) => { (acc[member.division] = acc[member.division] || []).push(member); return acc; }, {});
+        let content = '';
+        for (const division in teamByDivision) {
+            content += `
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="font-semibold text-indigo-700">${division}</h3>
+                         <button class="text-xs font-semibold text-indigo-600 flex items-center gap-1">+ Tambah Anggota</button>
+                    </div>
+                    <div class="space-y-3">
+                        ${teamByDivision[division].map(member => `
+                            <div class="bg-white p-3 rounded-lg border flex justify-between items-center">
+                                <div>
+                                    <p class="font-semibold text-slate-700">${member.name}</p>
+                                    <p class="text-sm text-slate-500">${member.role}</p>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <div class="flex items-center">
+                                        ${[...Array(5)].map((_, i) => `<svg class="w-4 h-4 ${i < member.performance ? 'text-amber-400' : 'text-slate-300'}" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>`).join('')}
+                                    </div>
+                                    <div class="flex items-center gap-2">${editIcon('')}${deleteIcon(`showDeleteConfirmation('team', ${member.id}, '${member.name.replace(/'/g, "\\'")}')`)}</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`;
+        }
+        return `<div><h2 class="text-2xl font-bold text-slate-800 mb-4">Struktur Tim</h2>${content}</div>`;
+    }
+
+    // --- NAVIGATION & DATA LOGIC ---
+    function renderProjectNavItem(tabId, label, svgPath) {
+        const isActive = appState.activeProjectTab === tabId;
+        return `<button onclick="setProjectTab('${tabId}')" class="text-center transition-colors ${isActive ? 'text-indigo-600' : 'text-slate-500'} nav-item ${isActive ? 'active' : ''}"><svg class="w-6 h-6 mx-auto" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">${svgPath}</svg><p class="text-xs mt-1 font-medium nav-text">${label}</p></button>`;
+    }
+    
+    function addNewProject(event) {
+        event.preventDefault();
+        const name = document.getElementById("projectName").value;
+        const category = document.getElementById("projectCategory").value;
+        const newId = `proj${Date.now()}`;
+        projectData[newId] = { name, category, progress: { tasks: 0, budget: 0 }, status: { class: "status-on-track", text: "Baru" }, timeline: [], tasks: [], budget: { total: 0, items: [], transactions: [] }, team: [] };
+        toggleModal(false);
+        render();
+    }
+    
+    function deleteItem(itemType, itemId) {
+        const project = projectData[appState.selectedProjectId];
+        switch(itemType) {
+            case 'task': project.tasks = project.tasks.filter(t => t.id !== itemId); break;
+            case 'rab': project.budget.items = project.budget.items.filter(i => i.id !== itemId); break;
+            case 'transaction': project.budget.transactions = project.budget.transactions.filter(t => t.id !== itemId); break;
+            case 'team': project.team = project.team.filter(m => m.id !== itemId); break;
+        }
+        toggleModal(false);
+        render();
+    }
+
+    function setBudgetTab(tabId) { appState.activeBudgetTab = tabId; render(); }
+    function setProjectTab(tabId) { appState.activeProjectTab = tabId; render(); }
+    function navigateToWorkspace() { appState.currentView = 'workspace'; appState.selectedProjectId = null; appState.activeProjectTab = 'timeline'; render(); }
+    function navigateToProject(projectId) { appState.currentView = 'project'; appState.selectedProjectId = projectId; appState.activeProjectTab = 'timeline'; render(); }
+    function navigateToProfile() { appState.currentView = 'profile'; appState.selectedProjectId = null; render(); }
+
+    function render() {
+        if (appState.currentView === "workspace") {
+            renderWorkspace();
+            bottomNav.innerHTML = `
+                <button onclick="navigateToWorkspace()" class="text-center text-indigo-600 nav-item active">
+                    <svg class="w-6 h-6 mx-auto" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>
+                    <p class="text-xs mt-1 nav-text">Workspace</p>
+                </button>
+                <button onclick="toggleNewProjectModal(true)" class="w-14 h-14 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg -mt-8">
+                    <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                </button>
+                <button onclick="navigateToProfile()" class="text-center text-slate-500 nav-item">
+                     <svg class="w-6 h-6 mx-auto" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    <p class="text-xs mt-1 nav-text">Profil</p>
+                </button>`;
+        } else if (appState.currentView === "project") {
+            renderProjectView();
+            bottomNav.innerHTML = `
+                ${renderProjectNavItem("timeline","Timeline",`<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0h18"/>`)}
+                ${renderProjectNavItem("tugas","Tugas",`<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>`)}
+                ${renderProjectNavItem("anggaran","Anggaran",`<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.75A.75.75 0 013 4.5h.75m0 0h.75A.75.75 0 015.25 6v.75m0 0v.75a.75.75 0 01-.75.75h-.75m0 0H3.75m0 0h.75a.75.75 0 01.75.75v.75m0 0v.75a.75.75 0 01-.75.75h-.75M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>`)}
+                ${renderProjectNavItem("tim","Tim",`<path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m-7.5-2.962c.57-1.023 1.528-1.745 2.723-2.134a9.09 9.09 0 013.16 0c1.194.389 2.153 1.111 2.723 2.134M15.75 12.75a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 19.5a9 9 0 0115 0"/>`)}`;
+        } else if (appState.currentView === "profile") {
+            renderProfileView();
+             bottomNav.innerHTML = `
+                <button onclick="navigateToWorkspace()" class="text-center text-slate-500 nav-item">
+                    <svg class="w-6 h-6 mx-auto" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>
+                    <p class="text-xs mt-1 nav-text">Workspace</p>
+                </button>
+                <button onclick="toggleNewProjectModal(true)" class="w-14 h-14 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg -mt-8">
+                    <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                </button>
+                <button onclick="navigateToProfile()" class="text-center text-indigo-600 nav-item active">
+                     <svg class="w-6 h-6 mx-auto" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    <p class="text-xs mt-1 nav-text">Profil</p>
+                </button>`;
+        }
+    }
+    
+    // Initial render
+    render();
+</script>
+</body>
+</html>
+
